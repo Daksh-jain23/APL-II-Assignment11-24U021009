@@ -187,6 +187,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
 }
 
 // Fetch current user details if logged in
+$isLoggedIn = isset($_SESSION['user_id']);
 $userData = null;
 if ($isLoggedIn && empty($db_error_msg)) {
     $uid = $_SESSION['user_id'];
@@ -203,8 +204,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     header("Location: " . strtok($_SERVER["REQUEST_URI"], '?')); // redirect without GET params
     exit;
 }
-
-$isLoggedIn = isset($_SESSION['user_id']);
 ?>
 <!DOCTYPE html>
 <html lang="en">

@@ -12,13 +12,18 @@ if (!$servername || !$username || !$dbname) {
     die("Database environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) are not set.");
 }
 
-// Create MySQL connection
-$conn = new mysqli($servername, $username, $password, $dbname, (int)$port);
+// Avoid fatal uncaught exceptions for mysqli connection errors in PHP 8.1+
+mysqli_report(MYSQLI_REPORT_OFF);
 
-// Note: If running for the very first time without the DB, you'd fail here. 
-// Assuming DB `ica2s_conference` runs from imported SQL file.
+// Create MySQL connection (suppress warnings with @ and handle gracefully)
+$conn = @new mysqli($servername, $username, $password, $dbname, (int)$port);
+
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    die("<div style='font-family:sans-serif; text-align:center; margin-top:50px; color:#e74c3c;'>
+        <h2>Database Connection Failed</h2>
+        <p>Render could not connect to your FreeSQLDatabase. This usually means either your <b>DB_PASSWORD</b> environment variable is incorrect, or the database provider blocked Render's IP address.</p>
+        <p><b>Technical Details:</b> " . htmlspecialchars($conn->connect_error) . "</p>
+        </div>");
 }
 
 

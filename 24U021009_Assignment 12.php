@@ -15,28 +15,40 @@ if (!$servername || !$username || !$dbname) {
 // Avoid fatal uncaught exceptions for mysqli connection errors in PHP 8.1+
 mysqli_report(MYSQLI_REPORT_OFF);
 
+$db_error_msg = "";
 // Create MySQL connection (suppress warnings with @ and handle gracefully)
 $conn = @new mysqli($servername, $username, $password, $dbname, (int)$port);
 
 if ($conn->connect_error) {
-    die("<div style='font-family:sans-serif; text-align:center; margin-top:50px; color:#e74c3c;'>
-        <h2>Database Connection Failed</h2>
-        <p>Render could not connect to your FreeSQLDatabase. This usually means either your <b>DB_PASSWORD</b> environment variable is incorrect, or the database provider blocked Render's IP address.</p>
-        <p><b>Technical Details:</b> " . htmlspecialchars($conn->connect_error) . "</p>
-        </div>");
+    $db_error_msg = htmlspecialchars($conn->connect_error);
 }
 
 
 // Single File API Handling for Content Fetching
 if (isset($_GET['api']) && $_GET['api'] == 'sections') {
     header('Content-Type: application/json');
-    $sql = "SELECT menu_name, content FROM sections";
-    $result = $conn->query($sql);
     $data = array();
-    if ($result && $result->num_rows > 0) {
-        while($row = $result->fetch_assoc()) {
-            $data[] = $row;
+    
+    if (empty($db_error_msg)) {
+        $sql = "SELECT menu_name, content FROM sections";
+        $result = $conn->query($sql);
+        if ($result && $result->num_rows > 0) {
+            while($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
         }
+    } else {
+        // Return a fallback block if database is offline
+        $data[] = array(
+            "menu_name" => "Home",
+            "content" => "<h1 class='hero-title'>Database Connection Offline</h1>
+                          <p class='hero-theme' style='color:#ff5252;'>Error: " . $db_error_msg . "</p>
+                          <p class='hero-date'>Please check your Render environment variables or database provider.</p>
+                          <div class='container' style='background:#f8d7da; color:#721c24; margin-top:20px; border:1px solid #f5c6cb;'>
+                              <h3>Cannot load content</h3>
+                              <p>The backend failed to connect to FreeSQLDatabase.</p>
+                          </div>"
+        );
     }
     echo json_encode($data);
     exit;
@@ -49,120 +61,126 @@ $lastAction = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
     $lastAction = $_POST['action'];
-    if ($_POST['action'] == 'register') {
-        $first_name = $conn->real_escape_string($_POST['first_name']);
-        $last_name = $conn->real_escape_string($_POST['last_name']);
-        $email = $conn->real_escape_string($_POST['email']);
-        
-        // Hash password for security
-        $pass = $_POST['password'];
-        $hashed_pass = password_hash($pass, PASSWORD_DEFAULT);
-        
-        $contact = $conn->real_escape_string($_POST['contact']);
-        $gender = $conn->real_escape_string($_POST['gender']);
-        $education = $conn->real_escape_string($_POST['education']);
-        $role = $conn->real_escape_string($_POST['role']);
-        $state = $conn->real_escape_string($_POST['state']);
-        $city = $conn->real_escape_string($_POST['city']);
+    
+    if (!empty($db_error_msg)) {
+        $message = "Database is offline. Actions cannot be performed!";
+        $messageType = "error";
+    } else {
+        if ($_POST['action'] == 'register') {
+            $first_name = $conn->real_escape_string($_POST['first_name']);
+            $last_name = $conn->real_escape_string($_POST['last_name']);
+            $email = $conn->real_escape_string($_POST['email']);
+            
+            // Hash password for security
+            $pass = $_POST['password'];
+            $hashed_pass = password_hash($pass, PASSWORD_DEFAULT);
+            
+            $contact = $conn->real_escape_string($_POST['contact']);
+            $gender = $conn->real_escape_string($_POST['gender']);
+            $education = $conn->real_escape_string($_POST['education']);
+            $role = $conn->real_escape_string($_POST['role']);
+            $state = $conn->real_escape_string($_POST['state']);
+            $city = $conn->real_escape_string($_POST['city']);
 
-        $checkDuplicate = $conn->query("SELECT email, contact_number FROM users WHERE email = '$email' OR contact_number = '$contact'");
-        if($checkDuplicate->num_rows > 0) {
-            $row = $checkDuplicate->fetch_assoc();
-            if ($row['email'] === $email) {
-                $message = "Email already registered! Please login.";
-            } else {
-                $message = "Contact number already registered!";
-            }
-            $messageType = "error";
-        } else {
-            $sql = "INSERT INTO users (first_name, last_name, email, password, contact_number, gender, education, role, state, city) 
-                    VALUES ('$first_name', '$last_name', '$email', '$hashed_pass', '$contact', '$gender', '$education', '$role', '$state', '$city')";
-            if ($conn->query($sql) === TRUE) {
-                $_SESSION['user_id'] = $conn->insert_id;
-                $_SESSION['first_name'] = $first_name;
-                $_SESSION['email'] = $email;
-                $message = "Registration successful! Welcome, " . htmlspecialchars($first_name) . "!";
-                $messageType = "success";
-            } else {
-                $message = "Error: " . $conn->error;
+            $checkDuplicate = $conn->query("SELECT email, contact_number FROM users WHERE email = '$email' OR contact_number = '$contact'");
+            if($checkDuplicate->num_rows > 0) {
+                $row = $checkDuplicate->fetch_assoc();
+                if ($row['email'] === $email) {
+                    $message = "Email already registered! Please login.";
+                } else {
+                    $message = "Contact number already registered!";
+                }
                 $messageType = "error";
-            }
-        }
-    } else if ($_POST['action'] == 'login') {
-        $email = $conn->real_escape_string($_POST['email']);
-        $pass = $_POST['password'];
-
-        $sql = "SELECT * FROM users WHERE email = '$email'";
-        $result = $conn->query($sql);
-        if ($result->num_rows > 0) {
-            $user = $result->fetch_assoc();
-            if (password_verify($pass, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['first_name'] = $user['first_name'];
-                $_SESSION['email'] = $user['email'];
-                $message = "Login successful! Welcome back, " . $user['first_name'] . ".";
-                $messageType = "success";
             } else {
-                $message = "Invalid password!";
-                $messageType = "error";
+                $sql = "INSERT INTO users (first_name, last_name, email, password, contact_number, gender, education, role, state, city) 
+                        VALUES ('$first_name', '$last_name', '$email', '$hashed_pass', '$contact', '$gender', '$education', '$role', '$state', '$city')";
+                if ($conn->query($sql) === TRUE) {
+                    $_SESSION['user_id'] = $conn->insert_id;
+                    $_SESSION['first_name'] = $first_name;
+                    $_SESSION['email'] = $email;
+                    $message = "Registration successful! Welcome, " . htmlspecialchars($first_name) . "!";
+                    $messageType = "success";
+                } else {
+                    $message = "Error: " . $conn->error;
+                    $messageType = "error";
+                }
             }
-        } else {
-            $message = "User not found! Please register.";
-            $messageType = "error";
-        }
-    } else if ($_POST['action'] == 'update_profile' && isset($_SESSION['user_id'])) {
-        $user_id = $_SESSION['user_id'];
-        $first_name = $conn->real_escape_string($_POST['first_name']);
-        $last_name = $conn->real_escape_string($_POST['last_name']);
-        $contact = $conn->real_escape_string($_POST['contact']);
-        $education = $conn->real_escape_string($_POST['education']);
-        $state = $conn->real_escape_string($_POST['state']);
-        $city = $conn->real_escape_string($_POST['city']);
+        } else if ($_POST['action'] == 'login') {
+            $email = $conn->real_escape_string($_POST['email']);
+            $pass = $_POST['password'];
 
-        // Check if new contact number is already taken by someone else
-        $checkContact = $conn->query("SELECT id FROM users WHERE contact_number = '$contact' AND id != $user_id");
-        if($checkContact->num_rows > 0) {
-            $message = "Contact number already registered by another user!";
-            $messageType = "error";
-        } else {
-            $sql = "UPDATE users SET first_name='$first_name', last_name='$last_name', contact_number='$contact', 
-                    education='$education', state='$state', city='$city' WHERE id=$user_id";
-            if ($conn->query($sql) === TRUE) {
-                $_SESSION['first_name'] = $first_name;
-                $message = "Profile updated successfully!";
-                $messageType = "success";
-            } else {
-                $message = "Update failed: " . $conn->error;
-                $messageType = "error";
-            }
-        }
-    } else if ($_POST['action'] == 'update_password' && isset($_SESSION['user_id'])) {
-        $user_id = $_SESSION['user_id'];
-        $current_pass = $_POST['current_password'];
-        $new_pass = $_POST['new_password'];
-        $confirm_pass = $_POST['confirm_password'];
-
-        if ($new_pass !== $confirm_pass) {
-            $message = "New passwords do not match!";
-            $messageType = "error";
-        } else {
-            $sql = "SELECT password FROM users WHERE id=$user_id";
+            $sql = "SELECT * FROM users WHERE email = '$email'";
             $result = $conn->query($sql);
-            $user = $result->fetch_assoc();
+            if ($result->num_rows > 0) {
+                $user = $result->fetch_assoc();
+                if (password_verify($pass, $user['password'])) {
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['first_name'] = $user['first_name'];
+                    $_SESSION['email'] = $user['email'];
+                    $message = "Login successful! Welcome back, " . $user['first_name'] . ".";
+                    $messageType = "success";
+                } else {
+                    $message = "Invalid password!";
+                    $messageType = "error";
+                }
+            } else {
+                $message = "User not found! Please register.";
+                $messageType = "error";
+            }
+        } else if ($_POST['action'] == 'update_profile' && isset($_SESSION['user_id'])) {
+            $user_id = $_SESSION['user_id'];
+            $first_name = $conn->real_escape_string($_POST['first_name']);
+            $last_name = $conn->real_escape_string($_POST['last_name']);
+            $contact = $conn->real_escape_string($_POST['contact']);
+            $education = $conn->real_escape_string($_POST['education']);
+            $state = $conn->real_escape_string($_POST['state']);
+            $city = $conn->real_escape_string($_POST['city']);
 
-            if (password_verify($current_pass, $user['password'])) {
-                $hashed_new_pass = password_hash($new_pass, PASSWORD_DEFAULT);
-                $sql_update = "UPDATE users SET password='$hashed_new_pass' WHERE id=$user_id";
-                if ($conn->query($sql_update) === TRUE) {
-                    $message = "Password updated successfully!";
+            // Check if new contact number is already taken by someone else
+            $checkContact = $conn->query("SELECT id FROM users WHERE contact_number = '$contact' AND id != $user_id");
+            if($checkContact->num_rows > 0) {
+                $message = "Contact number already registered by another user!";
+                $messageType = "error";
+            } else {
+                $sql = "UPDATE users SET first_name='$first_name', last_name='$last_name', contact_number='$contact', 
+                        education='$education', state='$state', city='$city' WHERE id=$user_id";
+                if ($conn->query($sql) === TRUE) {
+                    $_SESSION['first_name'] = $first_name;
+                    $message = "Profile updated successfully!";
                     $messageType = "success";
                 } else {
                     $message = "Update failed: " . $conn->error;
                     $messageType = "error";
                 }
-            } else {
-                $message = "Current password is incorrect!";
+            }
+        } else if ($_POST['action'] == 'update_password' && isset($_SESSION['user_id'])) {
+            $user_id = $_SESSION['user_id'];
+            $current_pass = $_POST['current_password'];
+            $new_pass = $_POST['new_password'];
+            $confirm_pass = $_POST['confirm_password'];
+
+            if ($new_pass !== $confirm_pass) {
+                $message = "New passwords do not match!";
                 $messageType = "error";
+            } else {
+                $sql = "SELECT password FROM users WHERE id=$user_id";
+                $result = $conn->query($sql);
+                $user = $result->fetch_assoc();
+
+                if (password_verify($current_pass, $user['password'])) {
+                    $hashed_new_pass = password_hash($new_pass, PASSWORD_DEFAULT);
+                    $sql_update = "UPDATE users SET password='$hashed_new_pass' WHERE id=$user_id";
+                    if ($conn->query($sql_update) === TRUE) {
+                        $message = "Password updated successfully!";
+                        $messageType = "success";
+                    } else {
+                        $message = "Update failed: " . $conn->error;
+                        $messageType = "error";
+                    }
+                } else {
+                    $message = "Current password is incorrect!";
+                    $messageType = "error";
+                }
             }
         }
     }
@@ -170,7 +188,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
 
 // Fetch current user details if logged in
 $userData = null;
-if ($isLoggedIn) {
+if ($isLoggedIn && empty($db_error_msg)) {
     $uid = $_SESSION['user_id'];
     $res = $conn->query("SELECT * FROM users WHERE id=$uid");
     if ($res && $res->num_rows > 0) {
@@ -350,9 +368,11 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 <li><a href="#registration">Registration</a></li>
                 <li><a href="#sponsorship">Sponsorship</a></li>
                 <li><a href="#contact">Contact</a></li>
-                <?php if ($isLoggedIn): ?>
+                <?php if (!empty($db_error_msg)): ?>
+                    <li><a class="login-btn-nav" style="background:#e74c3c; cursor:not-allowed;" title="Database Offline">DB Offline</a></li>
+                <?php elseif ($isLoggedIn): ?>
                     <li><a class="login-btn-nav" id="nav-account-btn">My Account</a></li>
-                    <li><a href="?action=logout" class="login-btn-nav">Logout (<?php echo htmlspecialchars($_SESSION['first_name']); ?>)</a></li>
+                    <li><a href="?action=logout" class="login-btn-nav">Logout (<?php echo htmlspecialchars($_SESSION['first_name'] ?? ''); ?>)</a></li>
                 <?php else: ?>
                     <li><a class="login-btn-nav" id="nav-login-btn">Login / Register</a></li>
                 <?php endif; ?>

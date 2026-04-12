@@ -1,7 +1,3 @@
--- CREATE DATABASE IF NOT EXISTS ica2s_conference;
--- USE ica2s_conference;
-
-DROP TABLE IF EXISTS sections;
 CREATE TABLE sections (
     id INT AUTO_INCREMENT PRIMARY KEY,
     menu_name VARCHAR(50) NOT NULL,
@@ -20,8 +16,7 @@ INSERT INTO sections (menu_name, content) VALUES
 ('Sponsorship', '<h2>Sponsorship</h2><div style="display: flex; gap: 20px; flex-wrap: wrap;"><div class="card theme-card" style="flex: 1;"><h3>Platinum</h3><p>$5000</p></div><div class="card theme-card" style="flex: 1;"><h3>Gold</h3><p>$3000</p></div><div class="card theme-card" style="flex: 1;"><h3>Silver</h3><p>$1500</p></div></div>'),
 ('Contact', '<h2>Contact Us</h2><div class="card" style="text-align: center;"><p><strong>Conference Secretariat</strong></p><p>Indian Institute of Information Technology Bhopal, India</p><p><strong>Email:</strong> ica2s@hotmail.com</p></div>');
 
--- Create new users table for Assignment 10
-DROP TABLE IF EXISTS users;
+
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,

@@ -1,0 +1,14 @@
+STEP 1: Start XAMPP
+Open your XAMPP Control Panel and start:
+1. Apache
+
+STEP 2: Deploy the PHP file
+Copy `Assignment-10` folder and paste it into:
+C:/xampp/htdocs/
+
+STEP 3: Import the SQL database into MySQL
+Open your terminal (PowerShell) in this Assignment-10 folder and run:
+cmd /c "mysql -u root -p < 24U021009_Assignment10.sql"
+
+STEP 4: Open in Browser
+http://localhost/24U021009_Assignment10/24U021009_Assignment%2010.php
